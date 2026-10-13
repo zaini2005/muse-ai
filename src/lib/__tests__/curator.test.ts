@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { basicKeywords } from "../keywords";
 import { checkAgainstRecords, proposeExhibition } from "../exhibition";
-import { normalizeMetObject, rankObjects, type MetObject } from "../met";
+import { describeFetchError, normalizeMetObject, rankObjects, type MetObject } from "../met";
 
 // A record in the exact shape the Met API returns (abridged).
 const RAW_COIN = {
@@ -151,5 +151,34 @@ describe("proposeExhibition (request shape)", () => {
     expect(userText).not.toContain("images.metmuseum.org"); // no image URLs sent
     expect(result.sections[0].objects.map((o) => o.objectId)).toEqual([1]);
     expect(result.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+// Uses genuine failed connections (nothing mocked) to check the error text.
+describe("describeFetchError", () => {
+  async function failure(url: string): Promise<unknown> {
+    try {
+      await fetch(url, { signal: AbortSignal.timeout(5000) });
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected the request to fail");
+  }
+
+  it("explains a refused connection instead of just 'fetch failed'", async () => {
+    // Grab a free port, then close it so nothing is listening there.
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
+    const { port } = probe.address() as AddressInfo;
+    await new Promise((resolve) => probe.close(resolve));
+    expect(describeFetchError(await failure(`http://127.0.0.1:${port}/`))).toBe(
+      "the connection was refused",
+    );
+  });
+
+  it("explains a server name that cannot be found", async () => {
+    expect(describeFetchError(await failure("https://museum.invalid/"))).toContain(
+      "could not be found",
+    );
   });
 });

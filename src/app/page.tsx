@@ -1,4 +1,5 @@
 import CuratorStudio from "@/components/CuratorStudio";
+import MuseumConnectionTest from "@/components/MuseumConnectionTest";
 
 export default function Home() {
   return (
@@ -36,6 +37,7 @@ export default function Home() {
             </>
           }
         />
+        <MuseumConnectionTest />
       </main>
 
       <footer className="border-t border-rule">
