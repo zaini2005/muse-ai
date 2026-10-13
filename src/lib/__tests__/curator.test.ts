@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { basicKeywords } from "../keywords";
 import { checkAgainstRecords, proposeExhibition } from "../exhibition";
-import { describeFetchError, normalizeMetObject, rankObjects, type MetObject } from "../met";
+import { describeFetchError } from "../http";
+import { htmlToText, normalizeArtwork, type RawArtwork } from "../artic";
+import { datasetSize, searchLocal, tokenize } from "../local-collection";
+import { normalizeMetObject, rankObjects, type MetObject } from "../met";
 
 // A record in the exact shape the Met API returns (abridged).
 const RAW_COIN = {
@@ -180,5 +184,97 @@ describe("describeFetchError", () => {
     expect(describeFetchError(await failure("https://museum.invalid/"))).toContain(
       "could not be found",
     );
+  });
+});
+
+// A record in the shape the Art Institute of Chicago API documents
+// (https://api.artic.edu/docs/). Test input only — not live data.
+describe("normalizeArtwork (Art Institute of Chicago)", () => {
+  const raw: RawArtwork = {
+    id: 42,
+    title: " Sample Title ",
+    artist_display: "Sample Artist\nAmerican, 1900–1980",
+    date_display: "1950",
+    medium_display: "Oil on canvas",
+    dimensions: "50 × 60 cm",
+    department_title: "Painting and Sculpture of Europe",
+    is_public_domain: true,
+    is_on_view: true,
+    gallery_title: "Gallery 240",
+    image_id: "abc-123",
+    thumbnail: { alt_text: "A painting." },
+    description: "<p>First &amp; best.</p><p>Second.</p>",
+    subject_titles: ["money"],
+    place_of_origin: "",
+  };
+
+  it("maps museum fields without inventing values", () => {
+    const o = normalizeArtwork(raw, "https://www.artic.edu/iiif/2");
+    expect(o.id).toBe("aic-42");
+    expect(o.title).toBe("Sample Title");
+    expect(o.artist).toBe("Sample Artist");
+    expect(o.artistBio).toBe("American, 1900–1980");
+    expect(o.geography).toBeNull();
+    expect(o.image).toBe("https://www.artic.edu/iiif/2/abc-123/full/843,/0/default.jpg");
+    expect(o.imageAlt).toBe("A painting.");
+    expect(o.url).toBe("https://www.artic.edu/artworks/42");
+    expect(o.onView).toBe("Gallery 240");
+    expect(o.description).toBe("First & best.\n\nSecond.");
+  });
+
+  it("leaves missing images and descriptions empty", () => {
+    const o = normalizeArtwork({ id: 7 });
+    expect(o.title).toBe("Untitled");
+    expect(o.artist).toBeNull();
+    expect(o.image).toBeNull();
+    expect(o.description).toBeNull();
+    expect(o.isPublicDomain).toBe(false);
+  });
+
+  it("strips HTML from museum descriptions", () => {
+    expect(htmlToText('<p>A <em>fine</em> work<br/>indeed</p>')).toBe("A fine work\nindeed");
+  });
+});
+
+// These run against the real local dataset in data/aic/ (no fixtures).
+describe("local Art Institute of Chicago dataset", () => {
+  const file = JSON.parse(readFileSync("data/aic/artworks.json", "utf8")) as RawArtwork[];
+  const byId = new Map(file.map((r) => [r.id, r]));
+
+  it("contains 5,000–10,000 records, each with source, license and museum URL", () => {
+    expect(datasetSize()).toBe(file.length);
+    expect(file.length).toBeGreaterThanOrEqual(5000);
+    expect(file.length).toBeLessThanOrEqual(10000);
+    for (const r of file) {
+      expect(r.museum_url).toBe(`https://www.artic.edu/artworks/${r.id}`);
+      expect(r.source).toContain("artic-api-data");
+      expect(r.license?.metadata).toContain("CC0");
+    }
+  });
+
+  it("does not assume every record is public domain or has an image", () => {
+    expect(file.some((r) => !r.is_public_domain)).toBe(true);
+    expect(file.some((r) => !r.image_id)).toBe(true);
+    const noImage = normalizeArtwork(file.find((r) => !r.image_id)!);
+    expect(noImage.image).toBeNull();
+  });
+
+  it.each(["currency", "coin", "portrait", "self portrait", "money"])(
+    "search for “%s” returns real records that contain the term",
+    (query) => {
+      const { total, objects } = searchLocal(query, 10);
+      expect(total).toBeGreaterThan(0);
+      for (const o of objects) {
+        const raw = byId.get(o.sourceId);
+        expect(raw, `record ${o.sourceId} should exist in the dataset`).toBeDefined();
+        expect(o.title).toBe(raw!.title!.trim());
+        const text = tokenize(JSON.stringify(raw)).join(" ");
+        for (const term of tokenize(query)) expect(text).toContain(term);
+      }
+    },
+  );
+
+  it("returns nothing for a word that is in no record", () => {
+    expect(searchLocal("zzqxyzzyunfindable").total).toBe(0);
   });
 });

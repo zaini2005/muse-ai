@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { isAiConfigured } from "@/lib/anthropic";
-import { generateKeywords } from "@/lib/keywords";
-import { MetApiError, getMetObjects, rankObjects, searchMet } from "@/lib/met";
+import { basicKeywords } from "@/lib/keywords";
+import { LocalDataError, searchLocal } from "@/lib/local-collection";
 import type { ApiError, FoundObject, KeywordStat, SearchResponse } from "@/lib/types";
 
-const WITH_IMAGES_PER_KEYWORD = 8;
-const WITHOUT_IMAGES_PER_KEYWORD = 2;
-const MAX_OBJECTS = 40;
+const PER_KEYWORD = 12;
+const MAX_OBJECTS = 36;
 
+// Searches the local Art Institute of Chicago dataset (data/aic/), not a live API.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const theme = typeof body?.theme === "string" ? body.theme.trim() : "";
@@ -18,84 +17,49 @@ export async function POST(request: Request) {
     );
   }
 
-  const { keywords, source, note } = await generateKeywords(theme);
-
-  // Two searches per keyword: one restricted to objects with images (preferred)
-  // and one unrestricted, so relevant objects without images can still appear.
-  const searches = await Promise.allSettled(
-    keywords.map(async (keyword) => {
-      const [withImages, all] = await Promise.all([
-        searchMet(keyword, { hasImages: true }),
-        searchMet(keyword),
-      ]);
-      return { keyword, withImages, all };
-    }),
-  );
-
-  const succeeded = searches.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
-  if (succeeded.length === 0) {
-    const reason = searches.find((s) => s.status === "rejected");
-    const message =
-      reason?.status === "rejected" && reason.reason instanceof MetApiError
-        ? reason.reason.message
-        : "The Met collection search failed";
+  const keywords = basicKeywords(theme);
+  if (keywords.length === 0) {
     return NextResponse.json<ApiError>(
-      { error: `${message}. Please try again in a moment.` },
-      { status: 502 },
+      { error: "Your theme has no searchable words. Try adding a subject, material, or idea." },
+      { status: 400 },
     );
   }
 
-  // Take the top results for each keyword in turn, so every angle on the
-  // theme is represented rather than the first keyword dominating.
-  const matched = new Map<number, string[]>();
-  const picks = succeeded.map(({ keyword, withImages, all }) => {
-    const imageSet = new Set(withImages);
-    return {
-      keyword,
-      ids: [
-        ...withImages.slice(0, WITH_IMAGES_PER_KEYWORD),
-        ...all.filter((id) => !imageSet.has(id)).slice(0, WITHOUT_IMAGES_PER_KEYWORD),
-      ],
-    };
-  });
-  const candidateIds: number[] = [];
-  for (let round = 0; candidateIds.length < MAX_OBJECTS; round++) {
-    let added = false;
-    for (const { keyword, ids } of picks) {
-      const id = ids[round];
-      if (id === undefined) continue;
-      added = true;
-      if (!matched.has(id)) {
-        matched.set(id, []);
-        if (candidateIds.length < MAX_OBJECTS) candidateIds.push(id);
-      }
-      matched.get(id)!.push(keyword);
-    }
-    if (!added) break;
-  }
-
-  let objects: FoundObject[] = [];
+  let searches: { keyword: string; total: number; objects: FoundObject[] }[];
   try {
-    const records = await getMetObjects(candidateIds);
-    objects = rankObjects(
-      records.map((o) => ({ ...o, matchedKeywords: matched.get(o.objectID) ?? [] })),
-    );
+    searches = keywords.map((keyword) => {
+      const { total, objects } = searchLocal(keyword, PER_KEYWORD);
+      return { keyword, total, objects: objects.map((o) => ({ ...o, matchedKeywords: [] })) };
+    });
   } catch (error) {
-    const message = error instanceof MetApiError ? error.message : "Could not load object records.";
-    return NextResponse.json<ApiError>({ error: message }, { status: 502 });
+    const message =
+      error instanceof LocalDataError ? error.message : "The local collection search failed.";
+    return NextResponse.json<ApiError>({ error: message }, { status: 500 });
   }
 
-  const keywordStats: KeywordStat[] = keywords.map((keyword) => {
-    const result = succeeded.find((s) => s.keyword === keyword);
-    return { keyword, matches: result ? result.all.length : null };
-  });
+  // Take results from each keyword in turn, so every angle on the theme is
+  // represented rather than the first keyword dominating.
+  const found = new Map<string, FoundObject>();
+  for (let round = 0; round < PER_KEYWORD && found.size < MAX_OBJECTS; round++) {
+    for (const { keyword, objects } of searches) {
+      const object = objects[round];
+      if (!object) continue;
+      const existing = found.get(object.id) ?? (found.size < MAX_OBJECTS ? object : null);
+      if (!existing) continue;
+      existing.matchedKeywords.push(keyword);
+      found.set(object.id, existing);
+    }
+  }
 
-  return NextResponse.json<SearchResponse>({
-    theme,
-    keywords: keywordStats,
-    keywordSource: source,
-    keywordNote: note,
-    aiAvailable: isAiConfigured(),
-    objects,
-  });
+  // Public-domain objects with images first, then other objects with images,
+  // then the rest. The sort is stable, so search relevance is kept within each.
+  const tier = (o: FoundObject) => (o.image ? (o.isPublicDomain ? 0 : 1) : 2);
+  const objects = [...found.values()].sort((a, b) => tier(a) - tier(b));
+
+  const keywordStats: KeywordStat[] = searches.map(({ keyword, total }) => ({
+    keyword,
+    matches: total,
+  }));
+
+  return NextResponse.json<SearchResponse>({ theme, keywords: keywordStats, objects });
 }

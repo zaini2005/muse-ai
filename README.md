@@ -3,63 +3,64 @@
 A web app that helps museum curators develop exhibitions around themes,
 questions, and ideas, rather than starting with individual objects.
 
-Enter a theme. The app searches **The Metropolitan Museum of Art's Open
-Access collection** for real objects. You choose which objects to include,
-and the app drafts an exhibition proposal from them: an argument, a narrative,
-gallery sections, and connections and tensions between the objects.
+Enter a theme, and the app searches **real Art Institute of Chicago
+artwork records** stored in the project, so it works without calling a live
+museum API. You then choose which objects to include in your exhibition.
 
 ## Tech stack
 
 - [Next.js](https://nextjs.org/) (React framework, App Router) and TypeScript
 - [Tailwind CSS](https://tailwindcss.com/) for styling
-- [The Met Collection API](https://metmuseum.github.io/), which is free and needs no key
-- [Claude](https://docs.claude.com/) via the Anthropic SDK, for search terms
-  and the exhibition proposal (optional, needs an API key)
+- A local sample of the [Art Institute of Chicago public data dump](https://github.com/art-institute-of-chicago/api-data)
+
+## The local dataset
+
+`data/aic/artworks.json` holds **8,000 real artwork records** taken from the
+museum's official full data dump
+(`https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2`).
+
+- **How they were chosen:** up to 90% are public domain with an image, so
+  their images can legally be reused. The rest are records that aren't public
+  domain or have no image but do have museum description text. Records with
+  descriptions and museum highlights come first, rotating across departments.
+- **What each record keeps:** 33 of the original API fields, with names and
+  values unchanged (except `thumbnail`, which keeps only its alt text and size),
+  plus `museum_url`, `source` and `license`.
+- **Licenses:** metadata is CC0. Museum description text is CC BY 4.0 (credit
+  the Art Institute of Chicago). Images are not in the dump. They load from the
+  museum's image server, and only public-domain images may be reused (see
+  https://www.artic.edu/open-access).
+- **The summary file:** `data/aic/manifest.json` records the dump date, the
+  full license text, the selection rule and counts.
+
+To rebuild the sample from the latest monthly dump (about 130 MB to download;
+takes a few minutes):
+
+```bash
+npm run data:aic
+```
 
 ## Running it locally
 
 You need [Node.js](https://nodejs.org/) 20 or newer.
 
 ```bash
-npm install                 # first time only
-cp .env.example .env.local  # then paste your Anthropic API key into .env.local
+npm install    # first time only
 npm run dev
 ```
 
 Open <http://localhost:3000>.
 
-### About the API key
-
-`ANTHROPIC_API_KEY` lives in `.env.local`. Git never commits this file, and
-the app reads it only on the server, so it is never sent to the browser.
-
-- **Without a key:** museum search still works. Search terms are taken from
-  the words in your theme, and the "Propose Exhibition" button stays off.
-- **With a key:** AI suggests better search terms and writes the proposal.
-
 ## Trying it out
 
 1. Enter `Currency and the Self` and click **Develop Theme**.
-2. Check the search terms used and the Met records found. Each card shows the
-   image, title, maker or culture, date, medium, dimensions, department,
-   public-domain status, more record details, and a link to the object's page
-   on metmuseum.org.
-3. Select 3–30 objects. The strongest 12 are selected for you.
-4. Click **Propose Exhibition**.
-
-## How the research stays honest
-
-- Every object comes from the Met API. The server fetches each record again
-  before writing a proposal and never trusts object data sent by the browser.
-- The AI receives only those records and is told not to add outside facts.
-- Any object ID in the AI's reply that wasn't retrieved is removed, and the
-  removal is shown to the user.
-- The interface labels **Met record** facts separately from **AI
-  interpretation**.
-- If the API returns nothing, the app says so. When the objects don't
-  support the theme well, the proposal says that too.
-- The Met API does not provide label or description text. Cards show the
-  structured record fields and link to the full entry on metmuseum.org.
+2. Results come from the local dataset. Each card shows the image (when there
+   is one), title, artist or culture, date, the museum description (when there
+   is one), rights and source details, and links to the museum record and the
+   image.
+3. Select the objects you want for the exhibition.
+4. To see 20 records straight from the dataset, open
+   <http://localhost:3000/local-records>.
 
 ## Commands
 
@@ -68,24 +69,31 @@ npm run dev     # development server
 npm test        # unit tests
 npm run lint    # code style checks
 npm run build   # production build
+npm run data:aic  # rebuild data/aic/ from the museum's latest data dump
 ```
 
 ## Project layout
 
 ```
+data/aic/
+  artworks.json              # 8,000 real Art Institute of Chicago records
+  manifest.json              # source, licenses, selection rule
+scripts/
+  build-aic-sample.mjs       # builds data/aic/ from the official dump
 src/
   app/
     page.tsx                 # Homepage
-    api/search/route.ts      # Theme → search terms → Met search → records
-    api/exhibition/route.ts  # Selected records → exhibition proposal
+    local-records/page.tsx   # Test page: 20 records from the local dataset
+    api/search/route.ts      # Theme → search terms → local search
   components/
-    CuratorStudio.tsx        # Page flow: search, select, propose
+    CuratorStudio.tsx        # Page flow: search, view, select
     ThemeForm.tsx            # Theme box and "Develop Theme" button
-    ObjectCard.tsx           # A single Met object
-    ExhibitionProposal.tsx   # The proposal view
+    ObjectCard.tsx           # A single artwork record
   lib/
-    met.ts                   # Met API client
-    keywords.ts              # Search-term generation
-    exhibition.ts            # Proposal prompt and record checks
-    anthropic.ts             # Claude client (server only)
+    local-collection.ts      # Loads and searches the local dataset
+    artic.ts                 # Art Institute record fields → app format
 ```
+
+Not used yet (kept for later steps): `src/lib/met.ts`,
+`src/lib/exhibition.ts`, `src/lib/anthropic.ts`, `src/app/api/exhibition/`
+and `src/components/ExhibitionProposal.tsx`, from the earlier Met and AI work.

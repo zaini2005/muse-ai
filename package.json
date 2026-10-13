@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "data:aic": "node scripts/build-aic-sample.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -26,7 +27,9 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.27",
     "tailwindcss": "^4",
+    "tar-stream": "^3.2.2",
     "typescript": "^5",
+    "unbzip2-stream": "^1.4.3",
     "vitest": "^5.0.4"
   }
 }

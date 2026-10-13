@@ -1,5 +1,5 @@
 import CuratorStudio from "@/components/CuratorStudio";
-import MuseumConnectionTest from "@/components/MuseumConnectionTest";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -28,25 +28,29 @@ export default function Home() {
               <div className="my-10 h-px w-24 bg-accent" />
               <p className="max-w-2xl text-lg leading-relaxed text-muted">
                 A studio for curators who begin with a question. Enter a theme,
-                idea, or provocation, and Thematic Curator searches The
-                Metropolitan Museum of Art&apos;s open collection for real
-                objects, then helps you shape them into an exhibition — framing
-                the argument, structuring galleries, and explaining why each
-                object belongs.
+                idea, or provocation, and Thematic Curator searches
+                real artworks and artifacts from the Art Institute of
+                Chicago&apos;s open collection, so you can gather the objects
+                that could bring your exhibition to life.
               </p>
             </>
           }
         />
-        <MuseumConnectionTest />
+        <p className="mx-auto max-w-3xl px-6 pb-16 text-sm text-muted">
+          Testing:{" "}
+          <Link href="/local-records" className="text-accent underline-offset-4 hover:underline">
+            view 20 records from the local dataset
+          </Link>
+        </p>
       </main>
 
       <footer className="border-t border-rule">
         <div className="mx-auto max-w-5xl px-6 py-6 text-xs tracking-wide text-muted">
           Thematic Curator — collection data from{" "}
-          <a href="https://metmuseum.github.io/" className="underline underline-offset-4 hover:text-foreground">
-            The Met Collection API
+          <a href="https://github.com/art-institute-of-chicago/api-data" className="underline underline-offset-4 hover:text-foreground">
+            the Art Institute of Chicago&apos;s public data
           </a>{" "}
-          (Open Access)
+          (metadata CC0; descriptions CC BY 4.0)
         </div>
       </footer>
     </div>

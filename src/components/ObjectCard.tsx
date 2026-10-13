@@ -1,10 +1,13 @@
-/* eslint-disable @next/next/no-img-element -- Met images are served directly from images.metmuseum.org */
+"use client";
+
+/* eslint-disable @next/next/no-img-element -- museum images are served directly from the museum's image server */
+import { useState } from "react";
 import type { FoundObject } from "@/lib/types";
 
 interface ObjectCardProps {
   object: FoundObject;
   selected: boolean;
-  onToggle: (id: number) => void;
+  onToggle: (id: string) => void;
 }
 
 function Field({ label, value }: { label: string; value: string | null }) {
@@ -25,6 +28,7 @@ export function makerLine(o: {
 }
 
 export default function ObjectCard({ object: o, selected, onToggle }: ObjectCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <article
       className={`flex flex-col border bg-surface transition-colors ${
@@ -32,16 +36,19 @@ export default function ObjectCard({ object: o, selected, onToggle }: ObjectCard
       }`}
     >
       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-rule/30">
-        {o.image ? (
+        {o.image && !imageFailed ? (
           <img
             src={o.image}
-            alt={o.title}
+            alt={o.imageAlt ?? o.title}
             loading="lazy"
+            onError={() => setImageFailed(true)}
             className="h-full w-full object-contain p-3"
           />
         ) : (
           <p className="px-6 text-center text-xs uppercase tracking-[0.15em] text-muted">
-            No image available{o.isPublicDomain ? "" : " — image rights may be restricted"}
+            {o.image
+              ? "Image could not be loaded from the museum's image server"
+              : "No image in this record"}
           </p>
         )}
         <span
@@ -60,6 +67,12 @@ export default function ObjectCard({ object: o, selected, onToggle }: ObjectCard
           {o.date && <span className="text-muted">, {o.date}</span>}
         </p>
         {o.artist && o.culture && <p className="text-sm text-muted">{o.culture}</p>}
+
+        {o.description && (
+          <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-foreground/80">
+            {o.description}
+          </p>
+        )}
 
         <dl className="mt-4 space-y-1.5 text-xs">
           <Field label="Medium" value={o.medium} />
@@ -80,12 +93,23 @@ export default function ObjectCard({ object: o, selected, onToggle }: ObjectCard
             <Field label="Subjects" value={o.tags.length ? o.tags.join(", ") : null} />
             <Field label="Credit line" value={o.creditLine} />
             <Field label="Accession no." value={o.accessionNumber} />
-            <Field label="On view" value={o.galleryNumber ? `Gallery ${o.galleryNumber}` : null} />
+            <Field label="On view" value={o.onView} />
           </dl>
-          <p className="mt-3 text-muted">
-            The Met&apos;s API does not include label or description text; read
-            the full entry on the museum&apos;s website.
-          </p>
+          {o.description && (
+            <div className="mt-3">
+              <p className="text-muted">Museum description (full)</p>
+              <p className="mt-1 whitespace-pre-line leading-relaxed text-foreground">
+                {o.description}
+              </p>
+            </div>
+          )}
+          <dl className="mt-3 space-y-1.5 border-t border-rule pt-3">
+            <Field label="Image rights" value={o.license?.image ?? null} />
+            <Field label="Copyright" value={o.copyrightNotice} />
+            <Field label="Text license" value={o.license?.description ?? null} />
+            <Field label="Data license" value={o.license?.metadata ?? null} />
+            <Field label="Source" value={o.source} />
+          </dl>
         </details>
 
         {o.matchedKeywords.length > 0 && (
@@ -95,17 +119,29 @@ export default function ObjectCard({ object: o, selected, onToggle }: ObjectCard
         )}
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-          <a
-            href={o.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-accent underline-offset-4 hover:underline"
-          >
-            View on metmuseum.org ↗
-          </a>
+          <div className="flex flex-col gap-1 text-xs font-medium text-accent">
+            <a
+              href={o.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              Museum record ↗
+            </a>
+            {o.image && (
+              <a
+                href={o.image}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline-offset-4 hover:underline"
+              >
+                Image ↗
+              </a>
+            )}
+          </div>
           <button
             type="button"
-            onClick={() => onToggle(o.objectID)}
+            onClick={() => onToggle(o.id)}
             aria-pressed={selected}
             className={`px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors ${
               selected

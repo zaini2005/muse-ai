@@ -1,0 +1,29 @@
+{
+  "museum": "Art Institute of Chicago",
+  "repository": "https://github.com/art-institute-of-chicago/api-data",
+  "dump_url": "https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2",
+  "dump_last_modified": "Sun, 11 Oct 2026 06:42:35 GMT",
+  "built_at": "2026-10-13T17:00:36.633Z",
+  "api_version": "1.16",
+  "license_text": "The `description` field in this response is licensed under a Creative Commons Attribution 4.0 Generic License (CC-By) and the Terms and Conditions of artic.edu. All other data in this response is licensed under a Creative Commons Zero (CC0) 1.0 designation and the Terms and Conditions of artic.edu.",
+  "license_links": [
+    "https://creativecommons.org/publicdomain/zero/1.0/",
+    "https://www.artic.edu/terms"
+  ],
+  "image_license_note": "Images are not part of the dump. Public-domain images are served by the museum's IIIF server under its Open Access policy (https://www.artic.edu/open-access).",
+  "iiif_url": "https://www.artic.edu/iiif/2",
+  "selection": {
+    "rule": "Up to 90% public-domain records with an image, the rest records that are not public domain or have no image but do have museum description text. Within each group, records with descriptions and museum highlights come first, rotating across departments.",
+    "target": 8000,
+    "selected": 8000,
+    "public_domain_with_image": 7200,
+    "with_description": 5665
+  },
+  "full_dump_counts": {
+    "total": 139747,
+    "publicDomain": 62115,
+    "withImage": 123757,
+    "publicDomainWithImage": 59063,
+    "withDescription": 13742
+  }
+}
