@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 
-export default function ThemeForm() {
+interface ThemeFormProps {
+  onSubmit: (theme: string) => void;
+  loading: boolean;
+}
+
+export default function ThemeForm({ onSubmit, loading }: ThemeFormProps) {
   const [theme, setTheme] = useState("");
-  const [submitted, setSubmitted] = useState<string | null>(null);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = theme.trim();
-    if (!trimmed) return;
-    // Placeholder: theme development will be built in a later step.
-    setSubmitted(trimmed);
+    if (!trimmed || loading) return;
+    onSubmit(trimmed);
   }
 
   return (
@@ -26,6 +29,7 @@ export default function ThemeForm() {
         id="theme"
         name="theme"
         rows={3}
+        maxLength={500}
         value={theme}
         onChange={(e) => setTheme(e.target.value)}
         placeholder="e.g. What does it mean to belong to a place?"
@@ -34,23 +38,12 @@ export default function ThemeForm() {
       <div className="mt-6 flex justify-end">
         <button
           type="submit"
-          disabled={!theme.trim()}
+          disabled={!theme.trim() || loading}
           className="bg-accent px-8 py-3 text-sm font-medium uppercase tracking-[0.18em] text-white transition-colors hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Develop Theme
+          {loading ? "Searching…" : "Develop Theme"}
         </button>
       </div>
-
-      {submitted && (
-        <p
-          role="status"
-          className="mt-8 border-l-2 border-accent pl-4 text-sm text-muted"
-        >
-          Theme received: <span className="font-serif text-base italic text-foreground">“{submitted}”</span>
-          <br />
-          Theme development is coming in the next step.
-        </p>
-      )}
     </form>
   );
 }
